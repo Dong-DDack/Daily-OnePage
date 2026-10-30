@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contractVersion": "pds-schema-v2",
+  "database": {
+    "engine": "PostgreSQL",
+    "provider": "Supabase",
+    "schema": "public",
+    "authentication": "none",
+    "accessNote": "The application uses the anon role. RLS policies currently permit public access; records are not isolated by user."
+  },
+  "dateAndTimeRules": {
+    "dateColumns": "PostgreSQL DATE; represented as YYYY-MM-DD without a time or timezone.",
+    "timestampColumns": "PostgreSQL TIMESTAMPTZ; instants are stored with timezone semantics and displayed in Asia/Seoul.",
+    "durationColumns": "All estimated and actual durations are integer minutes.",
+    "overdueRule": "A task is overdue when status is not DONE and due_date is before the current date in Asia/Seoul."
+  },
+  "tables": {
+    "plans": {
+      "purpose": "A planning period and its success criteria.",
+      "primaryKey": ["id"],
+      "columns": {
+        "id": "uuid",
+        "title": "text",
+        "start_date": "date",
+        "end_date": "date",
+        "priority": "text",
+        "success_criteria": "text",
+        "estimated_minutes": "integer",
+        "carried_forward_note": "text",
+        "previous_plan_id": "uuid",
+        "created_at": "timestamptz",
+        "updated_at": "timestamptz"
+      },
+      "relationships": [
+        { "column": "previous_plan_id", "references": "plans.id", "cardinality": "many-to-one", "optional": true }
+      ]
+    },
+    "plan_revisions": {
+      "purpose": "A snapshot of a plan before it is edited.",
+      "primaryKey": ["id"],
+      "columns": {
+        "id": "uuid",
+        "plan_id": "uuid",
+        "snapshot": "jsonb",
+        "changed_at": "timestamptz"
+      },
+      "relationships": [
+        { "column": "plan_id", "references": "plans.id", "cardinality": "many-to-one", "optional": false }
+      ]
+    },
+    "tasks": {
+      "purpose": "A task linked to a plan.",
+      "primaryKey": ["id"],
+      "columns": {
+        "id": "uuid",
+        "plan_id": "uuid",
+        "title": "text",
+        "due_date": "date",
+        "priority": "text",
+        "tags": "text[]",
+        "estimated_minutes": "integer",
+        "status": "text",
+        "completed_at": "timestamptz",
+        "blocked_reason": "text",
+        "position": "integer",
+        "deleted_at": "timestamptz",
+        "created_at": "timestamptz",
+        "updated_at": "timestamptz"
+      },
+      "relationships": [
+        { "column": "plan_id", "references": "plans.id", "cardinality": "many-to-one", "optional": false }
+      ]
+    },
+    "execution_logs": {
+      "purpose": "An actual work session attached to a task.",
+      "primaryKey": ["id"],
+      "columns": {
+        "id": "uuid",
+        "task_id": "uuid",
+        "started_at": "timestamptz",
+        "ended_at": "timestamptz",
+        "actual_minutes": "integer",
+        "blocked_reason": "text",
+        "request_key": "uuid",
+        "created_at": "timestamptz"
+      },
+      "relationships": [
+        { "column": "task_id", "references": "tasks.id", "cardinality": "many-to-one", "optional": false }
+      ]
+    },
+    "reflections": {
+      "purpose": "A period reflection and a note intended for a following plan.",
+      "primaryKey": ["id"],
+      "columns": {
+        "id": "uuid",
+        "plan_id": "uuid",
+        "period_start": "date",
+        "period_end": "date",
+        "summary": "text",
+        "next_action": "text",
+        "created_at": "timestamptz"
+      },
+      "relationships": [
+        { "column": "plan_id", "references": "plans.id", "cardinality": "many-to-one", "optional": false }
+      ]
+    }
+  },
+  "views": {
+    "plan_review_summary": {
+      "purpose": "Per-plan task and time aggregates exposed by the database; the current application computes its visible review metrics in the client instead of querying this view.",
+      "columns": {
+        "plan_id": "uuid",
+        "task_count": "bigint",
+        "completed_count": "bigint",
+        "overdue_count": "bigint",
+        "blocked_count": "bigint",
+        "expected_minutes": "bigint",
+        "actual_minutes": "bigint",
+        "difference_minutes": "bigint"
+      }
+    }
+  }
+}
