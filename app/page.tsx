@@ -19,8 +19,10 @@ import {
   Settings,
   Trash2,
   X,
+  LogOut,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 type DiaryTab = "month" | "week" | "day" | "review" | "settings";
 type Palette = "linen" | "olive" | "lilac" | "ink";
@@ -85,8 +87,8 @@ const todayKey = () => {
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
   return `${get("year")}-${get("month")}-${get("day")}`;
 };
-const priorityToDb = (priority: Task["priority"] | Plan["priority"]) => ({ 높음: "HIGH", 보통: "MEDIUM", 낮음: "LOW" })[priority];
-const priorityFromDb = (priority: string): Task["priority"] => priority === "HIGH" ? "높음" : priority === "LOW" ? "낮음" : "보통";
+const priorityToDb = (priority: Task["priority"] | Plan["priority"]) => ({ 높음: "high", 보통: "medium", 낮음: "low" })[priority];
+const priorityFromDb = (priority: string): Task["priority"] => priority.toLowerCase() === "high" ? "높음" : priority.toLowerCase() === "low" ? "낮음" : "보통";
 const toSeoulDate = (value: string) => {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
@@ -96,8 +98,8 @@ const toSeoulTime = (value: string) => new Date(value).toLocaleTimeString("en-GB
 const toSeoulIso = (date: string, time: string) => new Date(`${date}T${time}:00+09:00`).toISOString();
 const taskFromDb = (row: Record<string, unknown>): Task => ({
   id: String(row.id), date: String(row.due_date), title: String(row.title), position: Number(row.position ?? 0),
-  priority: priorityFromDb(String(row.priority ?? "MEDIUM")), tag: Array.isArray(row.tags) ? row.tags.map(String).join(", ") : "",
-  estimate: Number(row.estimated_minutes ?? 0), done: row.status === "DONE", blockedReason: String(row.blocked_reason ?? "") || undefined,
+  priority: priorityFromDb(String(row.priority ?? "medium")), tag: Array.isArray(row.tags) ? row.tags.map(String).join(", ") : "",
+  estimate: Number(row.estimated_minutes ?? 0), done: String(row.status).toLowerCase() === "done", blockedReason: String(row.blocked_reason ?? "") || undefined,
 });
 const logFromDb = (row: Record<string, unknown>): WorkLog => ({
   id: String(row.id), taskId: String(row.task_id), date: toSeoulDate(String(row.started_at)), start: toSeoulTime(String(row.started_at)),
@@ -105,7 +107,7 @@ const logFromDb = (row: Record<string, unknown>): WorkLog => ({
 });
 const planFromDb = (row: Record<string, unknown>): Plan => ({
   id: String(row.id), title: String(row.title), startDate: String(row.start_date), endDate: String(row.end_date),
-  priority: priorityFromDb(String(row.priority ?? "MEDIUM")), successCriteria: String(row.success_criteria ?? ""), estimatedMinutes: Number(row.estimated_minutes ?? 0),
+  priority: priorityFromDb(String(row.priority ?? "medium")), successCriteria: String(row.success_criteria ?? ""), estimatedMinutes: Number(row.estimated_minutes ?? 0),
 });
 
 const tabs: { id: DiaryTab; label: string; short: string; icon: typeof CalendarDays }[] = [
@@ -117,6 +119,11 @@ const tabs: { id: DiaryTab; label: string; short: string; icon: typeof CalendarD
 ];
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authMessage, setAuthMessage] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
   const [tab, setTab] = useState<DiaryTab>("month");
   const [palette, setPalette] = useState<Palette>("linen");
   const [fontMode, setFontMode] = useState<FontMode>("clear");
@@ -135,6 +142,86 @@ export default function Home() {
   const [dialog, setDialog] = useState<"plan" | "task" | "log" | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
+  useEffect(() => {
+    let alive = true;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (alive) {
+        const nextUser = session?.user ?? null;
+        setUser((previous) => {
+          if (previous?.id !== nextUser?.id) {
+            setPlan(null); setPlanRevisions([]); setTasks([]); setLogs([]); setReviewNote(""); setDbState("loading");
+          }
+          return nextUser;
+        });
+        setAuthLoading(false);
+      }
+    });
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!alive) return;
+      if (error) setAuthMessage("로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+      setUser(data.session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => { alive = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") || "").trim();
+    const password = String(form.get("password") || "");
+    setAuthBusy(true);
+    setAuthMessage("");
+    const result = authMode === "signup"
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+    setAuthBusy(false);
+    if (result.error) {
+      // 아이디가 없거나 비밀번호가 틀렸을 때 같은 안내를 사용합니다.
+      setAuthMessage(authMode === "login" ? "이메일 또는 비밀번호를 확인해 주세요." : "가입을 완료하지 못했습니다. 입력값을 확인해 주세요.");
+      return;
+    }
+    if (authMode === "signup" && !result.data.session) {
+      setAuthMessage("확인 메일을 보냈습니다. 이메일 인증을 마치면 로그인해 주세요.");
+      return;
+    }
+    setUser(result.data.user);
+    setAuthMessage("");
+  }
+
+  async function signInWithGoogle() {
+    setAuthBusy(true);
+    setAuthMessage("");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) {
+      setAuthBusy(false);
+      setAuthMessage("Google 로그인을 시작하지 못했습니다. Supabase에서 Google 공급자 설정을 확인해 주세요.");
+    }
+  }
+
+  async function signInWithNaver() {
+    setAuthBusy(true);
+    setAuthMessage("");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "custom:naver",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) {
+      setAuthBusy(false);
+      setAuthMessage("네이버 로그인을 시작하지 못했습니다. Supabase에 custom:naver 공급자 설정이 필요합니다.");
+    }
+  }
+
+  async function signOut() {
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signOut();
+    setAuthBusy(false);
+    if (error) setAuthMessage("로그아웃하지 못했습니다. 다시 시도해 주세요.");
+  }
+
   const visibleTasks = useMemo(() => tasks, [tasks]);
   const dayTasks = visibleTasks.filter((task) => task.date === selectedDate).sort((a, b) => a.position - b.position);
   const dayLogs = logs.filter((log) => log.date === selectedDate);
@@ -148,6 +235,7 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    if (authLoading || !user) return () => { active = false; };
     const currentDate = todayKey();
     setTodayDate(currentDate);
     setSelectedDate(currentDate);
@@ -187,7 +275,7 @@ export default function Home() {
       setDbState("error");
     });
     return () => { active = false; };
-  }, []);
+  }, [authLoading, user]);
 
   useEffect(() => {
     document.documentElement.dataset.palette = palette;
@@ -217,7 +305,7 @@ export default function Home() {
     if (!task) return;
     const done = !task.done;
     setDbState("saving");
-    const { data, error } = await supabase.from("tasks").update({ status: done ? "DONE" : "TODO", completed_at: done ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", id).select("*").single();
+    const { data, error } = await supabase.from("tasks").update({ status: done ? "done" : "todo", completed_at: done ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", id).select("*").single();
     if (error) { setDbError(error.message); setDbState("error"); return; }
     setTasks((current) => current.map((item) => item.id === id ? taskFromDb(data) : item));
     setDbError("");
@@ -248,7 +336,7 @@ export default function Home() {
     setDbState("saving");
     const result = editingTaskId
       ? await supabase.from("tasks").update(fields).eq("id", editingTaskId).select("*").single()
-      : await supabase.from("tasks").insert({ ...fields, plan_id: plan.id, status: "TODO", completed_at: null, position: dayTasks.length }).select("*").single();
+      : await supabase.from("tasks").insert({ ...fields, user_id: user!.id, plan_id: plan.id, status: "todo", completed_at: null, position: dayTasks.length }).select("*").single();
     if (result.error) { setDbError(result.error.message); setDbState("error"); return; }
     const next = taskFromDb(result.data);
     setTasks((current) => editingTaskId ? current.map((task) => task.id === next.id ? next : task) : [...current, next]);
@@ -271,7 +359,7 @@ export default function Home() {
     const note = String(form.get("note") || "").trim();
     setDbState("saving");
     const { data, error } = await supabase.from("execution_logs").insert({
-      task_id: taskId, started_at: toSeoulIso(selectedDate, start), ended_at: toSeoulIso(selectedDate, end), actual_minutes: minutes,
+      user_id: user!.id, task_id: taskId, started_at: toSeoulIso(selectedDate, start), ended_at: toSeoulIso(selectedDate, end), actual_minutes: minutes,
       blocked_reason: note || null, request_key: crypto.randomUUID(),
     }).select("*").single();
     if (error) { setDbError(error.message); setDbState("error"); return; }
@@ -298,14 +386,14 @@ export default function Home() {
     };
     if (editingPlan && plan) {
       const snapshot = { title: plan.title, start_date: plan.startDate, end_date: plan.endDate, priority: priorityToDb(plan.priority), success_criteria: plan.successCriteria, estimated_minutes: plan.estimatedMinutes };
-      const { data: revision, error: revisionError } = await supabase.from("plan_revisions").insert({ plan_id: plan.id, snapshot }).select("id, snapshot, changed_at").single();
+      const { data: revision, error: revisionError } = await supabase.from("plan_revisions").insert({ user_id: user!.id, plan_id: plan.id, snapshot }).select("id, snapshot, changed_at").single();
       if (revisionError) { setDbError(revisionError.message); setDbState("error"); return; }
       const { data, error } = await supabase.from("plans").update(values).eq("id", plan.id).select("*").single();
       if (error) { setDbError(error.message); setDbState("error"); return; }
       setPlan(planFromDb(data));
       setPlanRevisions((current) => [{ id: String(revision.id), snapshot: revision.snapshot as Record<string, unknown>, changedAt: String(revision.changed_at) }, ...current]);
     } else {
-      const { data, error } = await supabase.from("plans").insert(values).select("*").single();
+      const { data, error } = await supabase.from("plans").insert({ ...values, user_id: user!.id }).select("*").single();
       if (error) { setDbError(error.message); setDbState("error"); return; }
       setPlan(planFromDb(data));
     }
@@ -327,7 +415,7 @@ export default function Home() {
     if (!plan || !reviewNote.trim()) return;
     setDbState("saving");
     const { error } = await supabase.from("reflections").insert({
-      plan_id: plan.id, period_start: weekStart(selectedDate), period_end: shiftDate(weekStart(selectedDate), 6),
+      user_id: user!.id, plan_id: plan.id, period_start: weekStart(selectedDate), period_end: shiftDate(weekStart(selectedDate), 6),
       summary: null, next_action: reviewNote.trim(),
     });
     if (error) { setDbError(error.message); setDbState("error"); return; }
@@ -468,11 +556,35 @@ export default function Home() {
   const currentTask = tasks.find((task) => task.id === editingTaskId);
   const periodText = tab === "month" || tab === "review" ? monthLabel(monthDate) : tab === "week" ? `주간 · ${monthDate.getMonth() + 1}월 ${monthDate.getDate()}일` : `${monthDate.getMonth() + 1}월 ${monthDate.getDate()}일`;
 
+  if (authLoading) return <main className="auth-shell"><section className="auth-card"><span className="brand-mark"><BookOpen size={20} /></span><h1>하루 한 장</h1><p>로그인 상태를 확인하고 있어요.</p></section></main>;
+
+  if (!user) return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <span className="brand-mark"><BookOpen size={20} /></span>
+        <span className="eyebrow">PLAN · DO · SEE</span>
+        <h1>하루 한 장</h1>
+        <p className="auth-description">계획과 실제로 한 일, 돌아보기를 나만의 다이어리에 기록해요.</p>
+        <p className="auth-privacy">로그인 후 내 자료만 볼 수 있습니다. 비밀번호는 안전하게 처리됩니다.</p>
+        <form className="auth-form" onSubmit={handleAuth}>
+          <label>이메일<input name="email" type="email" autoComplete="email" required placeholder="name@example.com" /></label>
+          <label>비밀번호<input name="password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={authMode === "signup" ? 8 : undefined} /></label>
+          {authMessage && <p className="auth-message" role="status">{authMessage}</p>}
+          <button className="auth-primary" type="submit" disabled={authBusy}>{authBusy ? "처리 중…" : authMode === "login" ? "로그인" : "계정 만들기"}</button>
+        </form>
+        <div className="auth-divider"><span>또는</span></div>
+        <button className="auth-google" type="button" onClick={() => void signInWithGoogle()} disabled={authBusy}><b>G</b> Google로 계속하기</button>
+        <button className="auth-naver" type="button" onClick={() => void signInWithNaver()} disabled={authBusy}><b>N</b> 네이버로 계속하기</button>
+        <button className="auth-mode" type="button" onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthMessage(""); }}>{authMode === "login" ? "처음 오셨나요? 계정 만들기" : "이미 계정이 있나요? 로그인"}</button>
+      </section>
+    </main>
+  );
+
   return (
     <main className="desk-shell" data-theme={palette}>
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><BookOpen size={18} strokeWidth={1.8} /></span><span>하루 한 장<small>PLAN · DO · SEE</small></span></a><div className="topbar-right"><span className={`connection-badge ${dbState}`}><i />{dbState === "loading" ? "데이터 불러오는 중" : dbState === "saving" ? "저장 중" : dbState === "error" ? "연결 오류" : "데이터베이스 연결됨"}</span></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark"><BookOpen size={18} strokeWidth={1.8} /></span><span>하루 한 장<small>PLAN · DO · SEE</small></span></a><div className="topbar-right"><span className="signed-in-email">{user.email}</span><span className={`connection-badge ${dbState}`}><i />{dbState === "loading" ? "데이터 불러오는 중" : dbState === "saving" ? "저장 중" : dbState === "error" ? "연결 오류" : "내 계정에 저장됨"}</span><button className="signout-button" type="button" onClick={() => void signOut()} disabled={authBusy}><LogOut size={14} /> 로그아웃</button></div></header>
       {dbError && <p className="db-error" role="alert">{dbError}</p>}
-      {showPrivacyNotice && <aside className="privacy-note"><span className="privacy-icon">!</span><span>지금은 로그인이 없어 링크를 아는 사람은 누구나 볼 수 있습니다. 남이 봐도 괜찮은 내용만 넣으세요.</span><span className="privacy-side">공개 기록 안내</span></aside>}
+      {showPrivacyNotice && <aside className="privacy-note"><span className="privacy-icon">✓</span><span>로그인한 계정의 자료만 표시하고 저장합니다.</span><span className="privacy-side">계정 보호</span></aside>}
 
       <section className="diary-stage">
         <div className="bookmark-rail" aria-label="다이어리 페이지 선택">{tabs.map(({ id, label, short, icon: Icon }, index) => <button key={id} style={{ zIndex: tab === id ? 10 : 4 - index }} onClick={() => chooseTab(id)} className={`bookmark bookmark-${id} ${tab === id ? "active" : ""}`} aria-current={tab === id ? "page" : undefined}><Icon size={14} /><span>{label}</span><small>{short}</small></button>)}</div>

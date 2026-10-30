@@ -15,7 +15,7 @@
   <img alt="Supabase" src="https://img.shields.io/badge/Database-Supabase-3ecf8e?logo=supabase&logoColor=white">
 </p>
 
-> ⚠️ **현재 로그인 기능이 없습니다. 배포 주소를 아는 누구나 기록을 볼 수 있습니다. 공개해도 괜찮은 내용만 입력하세요.**
+> 🔐 **이 브랜치에는 이메일 로그인 화면과 사용자별 자료 보호가 구현되어 있습니다. Google·네이버 로그인을 사용하려면 Supabase Auth 공급자 설정이 추가로 필요합니다.**
 
 ## ✨ 이 다이어리에서 하는 일
 
@@ -76,17 +76,19 @@ npm run dev
 
 ## 🔐 공개 범위와 키 관리
 
-- 로그인이 없으며 Supabase `anon` 역할이 데이터를 읽고 쓸 수 있도록 RLS 정책이 설정되어 있습니다. 현재 데이터는 앱 사용자 사이에 분리되지 않습니다.
-- 브라우저에는 `NEXT_PUBLIC_` 환경 변수와 Supabase **publishable key**만 사용합니다. `service_role` 같은 비밀 키는 브라우저 코드나 저장소에 넣지 마세요.
+- 이메일·비밀번호 가입 및 로그인을 사용하고, Google은 Supabase 기본 공급자로 연결할 수 있습니다. 네이버는 Supabase의 `custom:naver` OAuth2 공급자로 설정할 수 있습니다.
+- [`supabase/migrations/202610300001_auth_ownership.sql`](supabase/migrations/202610300001_auth_ownership.sql)은 각 자료 표에 `user_id`를 추가하고, `auth.uid()`가 일치하는 행만 허용하는 RLS 정책을 적용합니다. 기존 자료는 최초 Auth 계정에 연결하도록 작성했습니다.
+- 인증 공급자 설정에는 Google/Naver 개발자 콘솔의 Client ID와 Client Secret이 필요합니다. 이 값은 Supabase 대시보드에만 입력하고 소스·브라우저 코드·Git에 넣지 마세요.
+- 브라우저에는 Supabase URL과 **publishable key**만 사용합니다. `service_role` 같은 비밀 키는 브라우저 코드나 저장소에 넣지 마세요.
 - `.env.local`은 Git에서 제외됩니다. Vercel 배포 환경 변수는 Vercel 프로젝트 설정에 별도로 등록합니다.
-- 다른 사람의 이름·연락처나 민감한 개인 기록을 입력하지 마세요.
+- 사용자는 로그아웃하면 브라우저의 세션이 폐기됩니다. JWT 액세스 토큰을 직접 탈취한 경우 만료 시점까지 사용할 수 있으므로 짧은 만료 설정과 재인증 운영을 추가 검토해야 합니다.
 
 ## ✅ 빠른 확인 방법
 
-- **어디로 가나요?** [배포된 하루 한 장](https://daily-one-page.vercel.app/)을 엽니다.
-- **세 단계 안에 무엇을 하나요?** ① 실제 계획을 저장하고 ② 그 계획에 할 일과 실행 기록을 넣고 ③ 돌아보기를 연 뒤 새로고침합니다.
-- **무엇이 보이면 통과인가요?** 기록이 화면과 Supabase의 `plans`, `tasks`, `execution_logs` 테이블에 남고, 돌아보기 숫자가 0만 표시되지 않습니다.
-- **안 될 때는 무엇이 보이나요?** 화면에 `연결 오류`와 오류 문구가 표시됩니다. Supabase Table Editor에서 해당 테이블의 행 수와 RLS 정책을 확인합니다.
+- **어디로 가나요?** 로컬 개발 주소 `http://localhost:3000` 또는 최신 배포 주소를 엽니다.
+- **세 단계 안에 무엇을 하나요?** ① 계정으로 로그인하고 ② 계획·할 일·실행 기록을 저장하고 ③ 로그아웃 후 다시 자료 주소를 엽니다.
+- **무엇이 보이면 통과인가요?** 로그인 뒤 내 기록만 보이고, 로그아웃 뒤에는 로그인 화면이 보입니다.
+- **안 될 때는 무엇이 보이나요?** 화면에 안내 문구가 표시됩니다. Supabase Authentication 사용자, OAuth 공급자, RLS 정책을 확인합니다.
 
 ## 🧑‍🎨 기획과 AI 사용
 

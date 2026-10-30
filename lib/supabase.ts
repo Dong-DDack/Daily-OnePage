@@ -7,4 +7,11 @@ if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error("Supabase 환경 변수가 설정되지 않았습니다.");
 }
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey);
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  auth: {
+    flowType: "pkce",
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});

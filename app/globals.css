@@ -99,6 +99,28 @@ html[data-palette="ink"] .palette-picker,html[data-palette="ink"] .draft-badge,h
 @media(max-width:800px){.bookmark-rail{right:auto;top:auto;align-items:center;perspective:none}.bookmark{width:auto;height:37px;min-height:37px;flex-direction:row;writing-mode:horizontal-tb;border-radius:5px;padding:7px 9px}.bookmark span{writing-mode:horizontal-tb}.bookmark.active{width:auto;height:37px;min-height:37px;margin-left:0;transform:translateY(-3px)!important;border-radius:5px}.bookmark.active small{display:none}.palette-picker{gap:5px;padding:4px 6px}.palette-picker>span{display:none}}
 @media(prefers-reduced-motion:reduce){.page-transition{animation:none}.bookmark{transition:none}}
 
+.auth-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--desk-bg)}
+.auth-card{width:min(420px,100%);padding:36px 38px 30px;border:1px solid #ddd4c5;border-radius:8px;background:var(--paper);box-shadow:var(--shadow);text-align:center}
+.auth-card>.brand-mark{width:46px;height:46px;margin:0 auto 15px}
+.auth-card>.eyebrow{margin-bottom:7px}
+.auth-card h1{margin:5px 0 8px;font:700 30px var(--serif);color:var(--ink)}
+.auth-description{margin:0;color:var(--sub);font-size:12px;line-height:1.7}
+.auth-privacy{margin:19px 0 17px;padding:10px;border:1px solid #e9e1d4;background:#f8f4eb;color:#827661;font-size:10px;line-height:1.6}
+.auth-form{text-align:left}
+.auth-form label{display:block;margin:12px 0;color:#8c8273;font-size:10px}
+.auth-form input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid #e1d9cc;border-radius:4px;background:#fffefa;color:#484238;font-size:12px}
+.auth-primary,.auth-google{display:block;width:100%;height:42px;border-radius:4px;cursor:pointer;font-size:12px}
+.auth-primary{margin-top:7px;border:1px solid #66755f;background:#66755f;color:white}
+.auth-primary:disabled,.auth-google:disabled,.signout-button:disabled{opacity:.6;cursor:wait}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:#aaa08e;font-size:9px}.auth-divider:before,.auth-divider:after{content:"";height:1px;flex:1;background:#e9e2d6}
+.auth-google{border:1px solid #e1d9cc;background:#fffefa;color:#5d564a}.auth-google b{margin-right:8px;color:#4285f4;font:700 14px Arial}
+.auth-naver{display:block;width:100%;height:42px;margin-top:8px;border:1px solid #03c75a;border-radius:4px;background:#03c75a;color:white;cursor:pointer;font-size:12px}.auth-naver b{margin-right:8px;font:700 14px Arial}
+.auth-mode{margin-top:17px;border:0;background:none;color:#78836d;font-size:10px;cursor:pointer}
+.auth-message{margin:8px 0;color:#a45f4e;font-size:10px;line-height:1.5}
+.signed-in-email{max-width:220px;overflow:hidden;text-overflow:ellipsis;color:#877e70;font-size:10px}
+.signout-button{display:flex;align-items:center;gap:5px;border:1px solid #ded8cc;border-radius:5px;background:#fffdf8;padding:8px 10px;color:#756d60;font-size:10px;cursor:pointer}
+@media(max-width:600px){.auth-card{padding:30px 22px 25px}.signed-in-email{display:none}}
+
 /* Readable font choices. The clear default uses common Korean UI fonts installed locally. */
 html[data-font="clear"]{--sans:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",Arial,sans-serif;--serif:"Malgun Gothic","맑은 고딕",serif}
 html[data-font="rounded"]{--sans:"Gowun Dodum","Malgun Gothic","맑은 고딕",sans-serif;--serif:"Gowun Batang",serif}
