@@ -73,8 +73,7 @@ const monthLabel = (date: Date) =>
   `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
 const weekStart = (key: string) => {
   const date = dateFromKey(key);
-  const mondayOffset = (date.getDay() + 6) % 7;
-  date.setDate(date.getDate() - mondayOffset);
+  date.setDate(date.getDate() - date.getDay());
   return dateKey(date);
 };
 const weekday = (key: string) =>
@@ -446,8 +445,8 @@ export default function Home() {
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
     const first = new Date(year, month, 1, 12);
-    const mondayOffset = (first.getDay() + 6) % 7;
-    const start = new Date(year, month, 1 - mondayOffset, 12);
+    const sundayOffset = first.getDay();
+    const start = new Date(year, month, 1 - sundayOffset, 12);
     return Array.from({ length: 42 }, (_, index) => {
       const date = new Date(start);
       date.setDate(start.getDate() + index);
@@ -500,7 +499,7 @@ export default function Home() {
       <>
         <div className="page-heading"><div><span className="eyebrow">MONTHLY CALENDAR · PLAN</span><h1>{monthLabel(monthDate)}</h1>{plan && <p className="active-plan-title">{plan.title}</p>}</div><button className="today-button" onClick={() => setSelectedDate(todayKey())}>오늘로</button></div>
         {!plan && <div className="plan-empty-state"><span>계획이 아직 없습니다.</span><button onClick={() => { setEditingPlan(false); setDialog("plan"); }}><Plus size={14} /> 계획 만들기</button></div>}
-        <div className="weekday-row">{["월", "화", "수", "목", "금", "토", "일"].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="weekday-row">{["일", "월", "화", "수", "목", "금", "토"].map((day) => <span key={day}>{day}</span>)}</div>
         <div className="month-grid">{renderCalendar()}</div>
         <div className="calendar-legend"><span><i className="legend-dot plan-dot" />예정한 일</span><span><i className="legend-dot done-dot" />완료한 일</span><span className="month-summary">이번 달 {doneCount} / {monthTasks.length}개 완료</span></div>
       </>
